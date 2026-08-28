@@ -43,6 +43,54 @@ def generate_key(password: str, salt: bytes) -> bytes:
     # Fernet requres the key to be URL-safe base64-encoded 32-byte key
     return base64.urlsafe_b64encode(kdf.derive(password.encode()))
 
+
+def add_entry(fernet: Fernet):
+    """Encrypts and appends a new multi-line journal entry to the encrypted journal file."""
+    print("\n--- Write your entry below (Press Enter then Ctrl+Z / Ctrl+D to finish and save) ---")
+
+    # Capture mutliple lines of text until the user signals they are done (Ctrl+Z on Windows, Ctrl+D on Unix)
+    lines = []
+    while True:
+        try:
+            line = input()
+            lines.append(line)
+        except EOFError:
+            break
+
+    entry_text = "\n".join(lines)
+
+    if not entry_text.strip():
+        print("Empty Entry. Entry not saved.")
+        return
+
+    # Turn the string into raw bytes and encrypt it
+    encrypted_entry = fernet.encrypt(entry_text.encode())
+
+    # Save to file using 'ab' mode to append bytes
+    with open(JOURNAL_FILE, "ab") as f:
+        f.write(encrypted_entry + b"\n")  # Add a newline for separation
+    print("\n Entry Successfully encrypted and saved to the journal!")
+
+def read_entries(fernet: Fernet):
+    """Reads, decrypts, and displays all saved journal entries. """
+    if not os.path.exists(JOURNAL_FILE):
+        print("\nYour journal is empty, no entries to display.")
+        return
+
+    print("\n--- Your Decrypted Journal Entries ---")
+    try:
+        with open(JOURNAL_FILE, "rb") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    # Attempt to decrypt the binary line
+                    decrypted_text = fernet.decrypt(line).decode()
+                    print(f"\n {decrypted_text}")
+                    print("-" * 40)
+    except Exception:
+        # If the key generated from the password is wrong, decryption fails automatically
+        print("\nDecryption failed, the password you entered is incorrect.")
+
 def main():
     print("Welcome to the Encrypted Journal CLI!")
     password = input("Please enter your password: ")
@@ -60,9 +108,9 @@ def main():
         choice = input("Please select an option (1-3): ")
 
         if choice == "1":
-            print("Write a new entry functionality is a work in progress.")
+            add_entry(fernet)
         elif choice == "2":
-            print("Read all entries functionality is a work in progress.")
+            read_entries(fernet)
         elif choice == "3":
             print("Exiting the Encrypted Journal CLI. Goodbye!")
             break
